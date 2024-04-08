@@ -1,3 +1,5 @@
+# from pygifsicle import optimize
+
 import os
 
 import cv2
@@ -158,9 +160,11 @@ def show_track(
     out_path = os.path.join(
         "finger_tapping", "data", "concat_{}.gif".format(video_name.split(".")[0])
     )
+
     with imageio.get_writer(out_path, mode="I") as writer:
         for frame in ACC_FRAMES:
             writer.append_data(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    # optimize(out_path)
 
     print("Results saved at")
     print(out_path)
