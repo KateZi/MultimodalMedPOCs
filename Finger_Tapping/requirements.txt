@@ -1,2 +1,2 @@
-mediapipe
-pre-commit
+mediapipe==0.10.11
+pre-commit==3.7.0
