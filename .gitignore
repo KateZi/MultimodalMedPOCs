@@ -163,5 +163,5 @@ cython_debug/
 #.idea/
 
 # data
-data/
-model/
+finger_tapping/data/*
+finger_tapping/model/*

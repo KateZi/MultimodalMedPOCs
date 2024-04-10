@@ -1,15 +1,118 @@
 # from pygifsicle import optimize
 
+import math
 import os
+from typing import Optional
 
 import cv2
+import ffmpeg
 import imageio
+import imutils
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.animation import FuncAnimation
 from mediapipe import solutions
 
-ACC_FRAMES = []
 MARGIN = 10
+
+
+def stack_gifs(gifs: list, out_path: str, fps: Optional[int] = 30):
+    """
+    Vertically stacks a list of input sources.
+    """
+    inputs = [ffmpeg.input(gif) for gif in gifs]
+    # fps_list = [ffmpeg.probe(gif)['streams'][0]['r_frame_rate'] for gif in gifs]
+    # max_fps = max([float(ifps.split('/')[0])/float(ifps.split('/')[1]) for ifps in fps_list])
+    # max_fps = int(math.ceil(max(fps, max_fps)))
+    # inputs = [ffmpeg.filter(input, 'fps', fps=max_fps) for input in inputs]
+    ffmpeg.filter(inputs, "vstack").output(out_path).run()
+    # print(f'The stacked gif is saved with fps {max_fps}')
+    print(f"The stacked gif is saved with fps {fps}")
+
+
+def create_tracking_gif(
+    video_path: str, landmarks_list: list, out_path: str, width: int, fps: int = 30
+):
+    """
+    Generates and saves gif of overlayed tracking.
+    """
+    cap = cv2.VideoCapture(video_path)
+    total_frame_num = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    out = imageio.get_writer(out_path, mode="I", fps=fps)
+
+    while cap.isOpened():
+
+        ret, frame = cap.read()
+        if not ret:
+            print(f"Failed to capture frame")
+            break
+
+        frame_num = int(cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1
+        if frame_num % 60 == 0:
+            print(f"Processed {frame_num} / {total_frame_num}")
+
+        annotated_frame = cv2.flip(frame, 1)
+        landmarks = landmarks_list[frame_num]
+
+        # Loop through the detected hands to visualize.
+        # find a way to detect the main hand and annotate only it
+        for idx in range(len(landmarks)):
+
+            solutions.drawing_utils.draw_landmarks(
+                annotated_frame,
+                landmarks[idx],
+                solutions.hands.HAND_CONNECTIONS,
+                solutions.drawing_styles.get_default_hand_landmarks_style(),
+                solutions.drawing_styles.get_default_hand_connections_style(),
+            )
+
+        annotated_frame = imutils.resize(annotated_frame, width=width)
+        out.append_data(cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB))
+
+    out.close()
+    cap.release()
+    cv2.destroyAllWindows()
+
+    print(f"Gif saved at {out_path}")
+
+
+def create_feature_gif(
+    feature: np.ndarray,
+    out_path: str,
+    width: int,
+    height: int,
+    px: Optional[int] = None,
+    fps: Optional[int] = 30,
+):
+    """
+    Generates and saves a gif of feature trajectory
+    """
+    if px is None:
+        px = 1 / plt.rcParams["figure.dpi"]  # pixel in inches
+    fig, ax = plt.subplots(figsize=(width * px, height * px))
+    xdata, ydata = [], []
+    (ln,) = ax.plot([], [], color="blue")
+    sc = ax.scatter([], [], color="red")
+
+    def init():
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlim(0, len(feature))
+        ax.set_ylim(min(feature) - 1, max(feature) + 1)
+        return (ln,)
+
+    def update(frame):
+        xdata.append(frame)
+        ydata.append(feature[frame])
+        ln.set_data(xdata, ydata)
+        sc.set_offsets(np.stack([frame, feature[frame]]).T)
+        return ((ln, sc),)
+        # return ln,
+
+    ani = FuncAnimation(fig, update, frames=len(feature), init_func=init, interval=30)
+
+    ani.save(out_path, writer="ffmpeg", fps=fps, dpi=1 / px)
+    print(f"Gif is saved at {out_path}")
 
 
 def draw_landmarks_on_image(frame: np.ndarray, landmarks: list):
@@ -51,13 +154,14 @@ def draw_landmarks_on_image(frame: np.ndarray, landmarks: list):
     return annotated_frame
 
 
-def plot_feature(feature: np.ndarray, figsize: tuple):
+def plot_feature(feature: np.ndarray, figsize: tuple, px: Optional[int] = None):
     """
     Plots feature trajectory in parallel to the video.
-    Return the plot.
+    Returns the plot.
     """
-    dpi = 100
-    fig = plt.figure(figsize=(figsize[1] / dpi, 5), dpi=dpi)
+    if px is None:
+        px = 1 / plt.rcParams["figure.dpi"]  # pixel in inches
+    fig = plt.figure(figsize=(figsize[1] * px, figsize[0] * px))
 
     plt.plot(feature)
     plt.scatter(len(feature) - 1, feature[-1], color="red")
@@ -96,17 +200,17 @@ def concat_frame_trajectory(frame: np.ndarray, landmarks: list, feature: np.ndar
     return vframe
 
 
-def show_track(
+def save_track_feat(
     video_dir: str,
     video_name: str,
+    out_path: str,
     landmarks_list: list,
     feature_list: list,
     width: int = 200,
-    height: int = 200,
-    show: bool = True,
+    fps: int = 30,
 ):
     """
-    Shows and saves the results of the hand traking in a concatenated format.
+    Shows the results of the hand traking in a concatenated format.
     Hand landmarks overlay and provided feature trajectory.
 
     Keyword arguments:
@@ -123,10 +227,8 @@ def show_track(
         return
 
     cap = cv2.VideoCapture(os.path.join(video_dir, video_name))
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-
-    i = 0
+    total_frame_num = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    out = imageio.get_writer(out_path, mode="I", fps=fps)
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -135,36 +237,21 @@ def show_track(
             print("Failure to read frame")
             break
 
+        frame_num = int(cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1
+        if frame_num % 60 == 0:
+            print(f"Processed {frame_num} / {total_frame_num}")
+
+        landmarks = landmarks_list[frame_num]
+        feature = feature_list[: max(frame_num, 1)]
+
         frame = cv2.flip(frame, 1)
+        res = concat_frame_trajectory(frame, landmarks, feature)
+        res = imutils.resize(res, width=width)
+        out.append_data(cv2.cvtColor(res, cv2.COLOR_BGR2RGB))
 
-        landmarks = landmarks_list[i]
-        feature = feature_list[: max(i, 1)]
-
-        ACC_FRAMES.append(concat_frame_trajectory(frame, landmarks, feature))
-
-        if show:
-            cv2.imshow("Hand tracker", ACC_FRAMES[-1])
-
-        i += 1
-
-        # Stop the program if the ESC key is pressed.
-        if cv2.waitKey(1) == 27:
-            break
+    out.close()
 
     cap.release()
     cv2.destroyAllWindows()
-    cv2.waitKey(1)
 
-    print("Saving the gif")
-
-    out_path = os.path.join(
-        "finger_tapping", "data", "concat_{}.gif".format(video_name.split(".")[0])
-    )
-
-    with imageio.get_writer(out_path, mode="I") as writer:
-        for frame in ACC_FRAMES:
-            writer.append_data(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-    # optimize(out_path)
-
-    print("Results saved at")
-    print(out_path)
+    print(f"Gif saved at {out_path}.")

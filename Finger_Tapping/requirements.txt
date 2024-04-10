@@ -1,6 +1,7 @@
+ffmpeg-python==0.2.0
 imageio==2.34.0
+imutils==0.5.4
 matplotlib==3.8.4
 mediapipe==0.9.1.0
 numpy==1.26.4
 pre-commit==3.7.0
-tqdm==4.66.2

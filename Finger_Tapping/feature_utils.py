@@ -10,13 +10,13 @@ class FeatureParser:
     Optionally, computes features.
     """
 
-    def __init__(self, res_path: str, landmarks: list = [0, 4, 8]):
+    def __init__(self, tracking: list, landmarks: list = [0, 4, 8]):
         """
         Keyword arguments:
-        res_path -- path to the saved tracking results
+        tracking -- list containing tracking results for each frame
         landmarks -- indeced of landmarks used for computing features
         """
-        self.tracking = np.load(res_path, allow_pickle=True)
+        self.tracking = tracking
         self.landmarks = landmarks
         self.features = {}
         self.parse_results()
@@ -56,12 +56,18 @@ class FeatureParser:
         self.features[f"{hand}_angle"] = interpol(angle)
 
     def _compute_angle(self, idx: int, hand: str):
+        """
+        Computes 2D angle
+        TODO: utilize the z coordinate
+        """
         for pred_i in range(len(self.handedness_list[idx])):
             handedness = self.handedness_list[idx][pred_i]
 
             if handedness[0].display_name.lower() != hand.lower():
                 continue
 
+            # coors = self.hand_landmarks_list[idx][pred_i]
+            # coors = [ele for e, ele in enumerate(coors) if e in self.landmarks]
             coors = self.hand_landmarks_proto_list[idx][pred_i]
             coors = [ele for e, ele in enumerate(coors.landmark) if e in self.landmarks]
             v1 = ((coors[1].x - coors[0].x), (coors[1].y - coors[0].y))
