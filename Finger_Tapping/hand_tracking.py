@@ -23,6 +23,7 @@ def track(video_dir: str, video_name: str):
 
     cap = cv2.VideoCapture(os.path.join(video_dir, video_name))
     total_frame_num = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
     print(f"Starting to process {total_frame_num} frames")
 
     base_options = BaseOptions(model_asset_path=MODEL_PATH)
@@ -55,9 +56,7 @@ def track(video_dir: str, video_name: str):
         mp_image = cv2.cvtColor(mp_image, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=mp_image)
 
-        res.append(
-            detector.detect_for_video(mp_image, int(cap.get(cv2.CAP_PROP_POS_MSEC)))
-        )
+        res.append(detector.detect_for_video(mp_image, int((frame_num / fps) * 1000)))
 
     detector.close()
     cap.release()

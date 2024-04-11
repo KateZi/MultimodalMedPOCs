@@ -2,6 +2,7 @@
 
 import math
 import os
+import subprocess
 from typing import Optional
 
 import cv2
@@ -10,7 +11,6 @@ import imageio
 import imutils
 import matplotlib.pyplot as plt
 import numpy as np
-import pygifsicle as gifsicle
 from matplotlib.animation import FuncAnimation
 from mediapipe import solutions
 
@@ -223,7 +223,6 @@ def save_track_feat(
     feature_list: list,
     width: int = 200,
     fps: int = 30,
-    optimize=False,
 ):
     """
     Shows the results of the hand traking in a concatenated format.
@@ -267,7 +266,19 @@ def save_track_feat(
     cap.release()
     cv2.destroyAllWindows()
 
-    if optimize:
-        gifsicle.optimize(out_path)
-
     print(f"Gif saved at {out_path}.")
+
+
+def optimize_gif(in_path: str, level: str, out_path: Optional[str] = None):
+    """
+    Optimizes gif using gifsicle. Saves at out_path if any, or overwrites.
+
+    Keyword arguments:
+    in_path -- path to the gif to optimize
+    level   -- one of the thre: ['-O1', '-O2', '-O3'],
+                where 1 is least optimization and 3 - most
+    """
+    if out_path is None:
+        out_path = in_path
+    subprocess.run(["gifsicle", level, in_path, "-o", out_path])
+    print("Gif is optimized")

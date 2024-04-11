@@ -10,29 +10,30 @@ import numpy as np
 
 def main(
     video_dir: str = "finger_tapping/data",
-    video_name: str = "ben_test.mov",
+    video_name: str = "PD_patient_trimmed.mov",
     tracking_path: Optional[str] = None,
 ):
 
-    if tracking_path is None:
-        tracking_path = os.path.join(
-            video_dir, "{}.npy".format(video_name.split(".")[0])
-        )
+    # if tracking_path is None:
+    #     tracking_path = os.path.join(
+    #         video_dir, "{}.npy".format(video_name.split(".")[0])
+    #     )
 
-    """ Test 'tracker.track' """
-    tracking = tracker.track(video_dir, video_name)
+    # """ Test 'tracker.track' """
+    # tracking = tracker.track(video_dir, video_name)
 
-    np.save(tracking_path, tracking)
+    # np.save(tracking_path, tracking)
 
     # for testing purposes
     # tracking = np.load(tracking_path, allow_pickle=True)
 
-    """ Test 'parser.FeatureParser """
-    feature_object = parser.FeatureParser(tracking)
-    feature_object.compute_angle("right")
-    feature_to_plot = "right_angle"
+    # """ Test 'parser.FeatureParser """
+    # feature_object = parser.FeatureParser(tracking)
+    # # feature_object.compute_angle("right")
+    # feature_object.compute_angle("left")
+    # feature_to_plot = "left_angle"
 
-    """ Test 'demo_utils.create_feature_gif' """
+    """Test 'demo_utils.create_feature_gif'"""
     # gif_path = os.path.join(video_dir, 'feat.gif')
     # demo_utils.create_feature_gif(feature_object.features[feature_to_plot], gif_path, 256, 64)
 
@@ -47,16 +48,19 @@ def main(
     #                          os.path.join(hvideo_dir,  'ffmpeg_concat.gif'))
 
     """ Test 'demo_utils.save_track_feat' """
-    gif_path = os.path.join(video_dir, "concat.gif")
-    demo_utils.save_track_feat(
-        video_dir,
-        video_name,
-        gif_path,
-        feature_object.hand_landmarks_proto_list,
-        feature_object.features[feature_to_plot],
-        width=120,
-        optimize=True,
-    )
+    # gif_path = os.path.join(video_dir, "pd_patient_trimmed.gif")
+    # demo_utils.save_track_feat(
+    #     video_dir,
+    #     video_name,
+    #     gif_path,
+    #     feature_object.hand_landmarks_proto_list,
+    #     feature_object.features[feature_to_plot],
+    #     width=300
+    #             )
+
+    """ Test 'demo_utils.optimize_gif' """
+    gif_path = os.path.join(video_dir, "pd_patient_trimmed.gif")
+    demo_utils.optimize_gif(gif_path, "-O2", gif_path)
 
 
 if __name__ == "__main__":
