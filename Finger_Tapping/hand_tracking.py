@@ -4,7 +4,6 @@ import os
 import cv2
 import mediapipe as mp
 import numpy as np
-from mediapipe.framework.formats import landmark_pb2
 from mediapipe.tasks.python import BaseOptions, vision
 
 logging.basicConfig(filename="myapp.log", level=logging.INFO)

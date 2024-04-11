@@ -10,6 +10,7 @@ import imageio
 import imutils
 import matplotlib.pyplot as plt
 import numpy as np
+import pygifsicle as gifsicle
 from matplotlib.animation import FuncAnimation
 from mediapipe import solutions
 
@@ -122,6 +123,11 @@ def draw_landmarks_on_image(frame: np.ndarray, landmarks: list):
     """
     annotated_frame = np.copy(frame)
 
+    # landmark_drawing_spec = solutions.drawing_utils.DrawingSpec(thickness=12)
+    # connect_drawing_spec = solutions.drawing_utils.DrawingSpec(thickness=8)
+    landmark_drawing_spec = solutions.drawing_styles.get_default_hand_landmarks_style()
+    connect_drawing_spec = solutions.drawing_styles.get_default_hand_connections_style()
+
     # Loop through the detected hands to visualize.
     # find a way to detect the main hand and annotate only it
     for idx in range(len(landmarks)):
@@ -130,8 +136,8 @@ def draw_landmarks_on_image(frame: np.ndarray, landmarks: list):
             annotated_frame,
             landmarks[idx],
             solutions.hands.HAND_CONNECTIONS,
-            solutions.drawing_styles.get_default_hand_landmarks_style(),
-            solutions.drawing_styles.get_default_hand_connections_style(),
+            landmark_drawing_spec,
+            connect_drawing_spec,
         )
 
         # # Get the top left corner of the detected hand's bounding box.
@@ -154,7 +160,9 @@ def draw_landmarks_on_image(frame: np.ndarray, landmarks: list):
     return annotated_frame
 
 
-def plot_feature(feature: np.ndarray, figsize: tuple, px: Optional[int] = None):
+def plot_feature(
+    feature_list: np.ndarray, index: int, figsize: tuple, px: Optional[int] = None
+):
     """
     Plots feature trajectory in parallel to the video.
     Returns the plot.
@@ -163,9 +171,12 @@ def plot_feature(feature: np.ndarray, figsize: tuple, px: Optional[int] = None):
         px = 1 / plt.rcParams["figure.dpi"]  # pixel in inches
     fig = plt.figure(figsize=(figsize[1] * px, figsize[0] * px))
 
-    plt.plot(feature)
+    feature = feature_list[: max(index, 1)]
+    plt.plot(feature, linewidth=3)
     plt.scatter(len(feature) - 1, feature[-1], color="red")
 
+    plt.ylim(min(feature_list) - 1, max(feature_list) + 1)
+    plt.xlim(0, len(feature_list))
     plt.yticks([])
     plt.xticks([])
 
@@ -184,16 +195,20 @@ def plot_feature(feature: np.ndarray, figsize: tuple, px: Optional[int] = None):
     return img
 
 
-def concat_frame_trajectory(frame: np.ndarray, landmarks: list, feature: np.ndarray):
+def concat_frame_trajectory(
+    frame: np.ndarray, landmarks_list: list, feature_list: np.ndarray, index: int
+):
     """
     Vertically concatenates the annotated frame and trajectory plot.
     """
+    landmarks = landmarks_list[index]
+
     if len(landmarks) == 0:
         top_frame = frame
     else:
         top_frame = draw_landmarks_on_image(frame, landmarks)
 
-    bottom_frame = plot_feature(feature, top_frame.shape)
+    bottom_frame = plot_feature(feature_list, index, top_frame.shape)
 
     vframe = cv2.vconcat([top_frame, bottom_frame])
 
@@ -208,6 +223,7 @@ def save_track_feat(
     feature_list: list,
     width: int = 200,
     fps: int = 30,
+    optimize=False,
 ):
     """
     Shows the results of the hand traking in a concatenated format.
@@ -241,11 +257,8 @@ def save_track_feat(
         if frame_num % 60 == 0:
             print(f"Processed {frame_num} / {total_frame_num}")
 
-        landmarks = landmarks_list[frame_num]
-        feature = feature_list[: max(frame_num, 1)]
-
         frame = cv2.flip(frame, 1)
-        res = concat_frame_trajectory(frame, landmarks, feature)
+        res = concat_frame_trajectory(frame, landmarks_list, feature_list, frame_num)
         res = imutils.resize(res, width=width)
         out.append_data(cv2.cvtColor(res, cv2.COLOR_BGR2RGB))
 
@@ -253,5 +266,8 @@ def save_track_feat(
 
     cap.release()
     cv2.destroyAllWindows()
+
+    if optimize:
+        gifsicle.optimize(out_path)
 
     print(f"Gif saved at {out_path}.")

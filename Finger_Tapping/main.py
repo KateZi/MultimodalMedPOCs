@@ -33,21 +33,21 @@ def main(
     feature_to_plot = "right_angle"
 
     """ Test 'demo_utils.create_feature_gif' """
-    # gif_path = os.path.join(video_dir, 'sized_ben_feat.gif')
+    # gif_path = os.path.join(video_dir, 'feat.gif')
     # demo_utils.create_feature_gif(feature_object.features[feature_to_plot], gif_path, 256, 64)
 
     """ Test 'demo_utils.create_tracking_gif' """
-    # gif_path = os.path.join(video_dir, 'sized_ben.gif')
+    # gif_path = os.path.join(video_dir, 'track.gif')
     # demo_utils.create_tracking_gif(os.path.join(video_dir, video_name), feature_object.hand_landmarks_proto_list,
     #                                 gif_path, width=256)
 
     """ Test 'demo_utils.stack_gifs' """
-    # demo_utils.stack_gifs([os.path.join(video_dir, 'sized_ben.gif'),
-    #                         os.path.join(video_dir, 'sized_ben_feat.gif')],
-    #                          os.path.join(hvideo_dir,  'ffmpeg_python_stack.gif'))
+    # demo_utils.stack_gifs([os.path.join(video_dir, 'track.gif'),
+    #                         os.path.join(video_dir, 'feat.gif')],
+    #                          os.path.join(hvideo_dir,  'ffmpeg_concat.gif'))
 
     """ Test 'demo_utils.save_track_feat' """
-    gif_path = os.path.join(video_dir, "concat_ben.gif")
+    gif_path = os.path.join(video_dir, "concat.gif")
     demo_utils.save_track_feat(
         video_dir,
         video_name,
@@ -55,6 +55,7 @@ def main(
         feature_object.hand_landmarks_proto_list,
         feature_object.features[feature_to_plot],
         width=120,
+        optimize=True,
     )
 
 
