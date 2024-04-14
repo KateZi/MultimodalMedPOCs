@@ -1,12 +1,10 @@
 # from pygifsicle import optimize
 
-import math
 import os
 import subprocess
 from typing import Optional
 
 import cv2
-import ffmpeg
 import imageio
 import imutils
 import matplotlib.pyplot as plt
@@ -14,21 +12,15 @@ import numpy as np
 from matplotlib.animation import FuncAnimation
 from mediapipe import solutions
 
-MARGIN = 10
 
-
-def stack_gifs(gifs: list, out_path: str, fps: Optional[int] = 30):
+def stack_gifs(gifs: list, out_path: str):
     """
     Vertically stacks a list of input sources.
     """
-    inputs = [ffmpeg.input(gif) for gif in gifs]
-    # fps_list = [ffmpeg.probe(gif)['streams'][0]['r_frame_rate'] for gif in gifs]
-    # max_fps = max([float(ifps.split('/')[0])/float(ifps.split('/')[1]) for ifps in fps_list])
-    # max_fps = int(math.ceil(max(fps, max_fps)))
-    # inputs = [ffmpeg.filter(input, 'fps', fps=max_fps) for input in inputs]
-    ffmpeg.filter(inputs, "vstack").output(out_path).run()
-    # print(f'The stacked gif is saved with fps {max_fps}')
-    print(f"The stacked gif is saved with fps {fps}")
+    subprocess.call(
+        ["ffmpeg", "-i", gifs[0], "-i", gifs[1], "-filter_complex", "vstack", out_path]
+    )
+    print(f"The stacked gif is saved")
 
 
 def create_tracking_gif(
@@ -78,7 +70,7 @@ def create_tracking_gif(
 
 
 def create_feature_gif(
-    feature: np.ndarray,
+    feature_list: np.ndarray,
     out_path: str,
     width: int,
     height: int,
@@ -98,19 +90,20 @@ def create_feature_gif(
     def init():
         ax.set_xticks([])
         ax.set_yticks([])
-        ax.set_xlim(0, len(feature))
-        ax.set_ylim(min(feature) - 1, max(feature) + 1)
+        ax.set_xlim(0, len(feature_list))
+        ax.set_ylim(min(feature_list) - 1, max(feature_list) + 1)
         return (ln,)
 
     def update(frame):
         xdata.append(frame)
-        ydata.append(feature[frame])
+        ydata.append(feature_list[frame])
         ln.set_data(xdata, ydata)
-        sc.set_offsets(np.stack([frame, feature[frame]]).T)
+        sc.set_offsets(np.stack([frame, feature_list[frame]]).T)
         return ((ln, sc),)
-        # return ln,
 
-    ani = FuncAnimation(fig, update, frames=len(feature), init_func=init, interval=30)
+    ani = FuncAnimation(
+        fig, update, frames=len(feature_list), init_func=init, interval=30
+    )
 
     ani.save(out_path, writer="ffmpeg", fps=fps, dpi=1 / px)
     print(f"Gif is saved at {out_path}")
@@ -123,8 +116,6 @@ def draw_landmarks_on_image(frame: np.ndarray, landmarks: list):
     """
     annotated_frame = np.copy(frame)
 
-    # landmark_drawing_spec = solutions.drawing_utils.DrawingSpec(thickness=12)
-    # connect_drawing_spec = solutions.drawing_utils.DrawingSpec(thickness=8)
     landmark_drawing_spec = solutions.drawing_styles.get_default_hand_landmarks_style()
     connect_drawing_spec = solutions.drawing_styles.get_default_hand_connections_style()
 
@@ -139,23 +130,6 @@ def draw_landmarks_on_image(frame: np.ndarray, landmarks: list):
             landmark_drawing_spec,
             connect_drawing_spec,
         )
-
-        # # Get the top left corner of the detected hand's bounding box.
-        # height, width, _ = annotated_frame.shape
-        # x_coordinates = [landmark.x for landmark in landmarks[idx]]
-        # y_coordinates = [landmark.y for landmark in landmarks[idx]]
-        # text_x = int(min(x_coordinates) * width)
-        # text_y = int(min(y_coordinates) * height) - MARGIN
-
-        # # Draw handedness (left or right hand) on the image.
-        # cv2.putText(
-        #     annotated_frame,
-        #     f"{handedness[0].category_name}",
-        #     (text_x, text_y),
-        #     fontFace=cv2.FONT_HERSHEY_DUPLEX,
-        #     fontScale=1,
-        #     color=(0, 0, 0),
-        # )
 
     return annotated_frame
 
