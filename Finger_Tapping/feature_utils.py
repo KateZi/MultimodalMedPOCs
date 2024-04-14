@@ -66,8 +66,6 @@ class FeatureParser:
             if handedness[0].display_name.lower() != hand.lower():
                 continue
 
-            # coors = self.hand_landmarks_list[idx][pred_i]
-            # coors = [ele for e, ele in enumerate(coors) if e in self.landmarks]
             coors = self.hand_landmarks_proto_list[idx][pred_i]
             coors = [ele for e, ele in enumerate(coors.landmark) if e in self.landmarks]
             v1 = ((coors[1].x - coors[0].x), (coors[1].y - coors[0].y))

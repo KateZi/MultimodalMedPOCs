@@ -1,13 +1,9 @@
-import logging
 import os
 
 import cv2
 import mediapipe as mp
 import numpy as np
 from mediapipe.tasks.python import BaseOptions, vision
-
-logging.basicConfig(filename="myapp.log", level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 MODEL_PATH = "finger_tapping/model/hand_landmarker.task"
 NUM_HANDS = 2
@@ -30,7 +26,6 @@ def track(video_dir: str, video_name: str):
     options = vision.HandLandmarkerOptions(
         base_options=base_options,
         running_mode=vision.RunningMode.VIDEO,
-        # running_mode=vision.RunningMode.IMAGE,
         num_hands=NUM_HANDS,
     )
     detector = vision.HandLandmarker.create_from_options(options)

@@ -7,10 +7,13 @@ from typing import Optional
 import cv2
 import imageio
 import imutils
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation
 from mediapipe import solutions
+
+matplotlib.rcParams.update({"backend": "AGG"})
 
 
 def stack_gifs(gifs: list, out_path: str):

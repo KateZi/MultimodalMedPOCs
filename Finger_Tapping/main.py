@@ -1,6 +1,5 @@
-import argparse
 import os
-from typing import Callable, Optional
+from typing import Callable
 
 import demo_utils as demo_utils
 import feature_utils as parser
@@ -76,14 +75,15 @@ if __name__ == "__main__":
     out_path = os.path.join(data_dir, "testing.gif")
     tracking_path = os.path.join(data_dir, f"{prefix_name}.npy")
 
-    func = demo_utils.stack_gifs
+    func = demo_utils.create_feature_gif
     # adjust to your needs
     plot_args = {
-        "gifs": [out_path, out_path],
-        "out_path": os.path.join(data_dir, "testingx4.gif"),
+        "out_path": os.path.join(data_dir, "testing.gif"),
+        "width": 256,
+        "height": 120,
     }
     track_args = None
-    parse_args = None
+    parse_args = {"tracking_path": tracking_path}
     hand = "left"
 
     plotting_pipeline(func, plot_args, track_args, parse_args, hand)
