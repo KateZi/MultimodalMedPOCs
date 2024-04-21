@@ -162,6 +162,11 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+# VSCode
+.vscode/settings.json
+
 # data
 finger_tapping/data/*
 finger_tapping/model/*
+speech/data
+speech/out
