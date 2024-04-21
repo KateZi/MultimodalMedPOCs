@@ -168,5 +168,7 @@ cython_debug/
 # data
 finger_tapping/data/*
 finger_tapping/model/*
-speech/data
-speech/out
+speech/data/*
+speech/out/*
+
+!*.gitkeep
