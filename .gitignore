@@ -168,13 +168,8 @@ cython_debug/
 # data
 finger_tapping/data/*
 finger_tapping/model/*
-<<<<<<< HEAD
 speech/data/*
 speech/out/*
-
 !*.gitkeep
-=======
-speech/data
-speech/out
+
 .DS_Store
->>>>>>> 9f56f52 (Reqs for speech)
