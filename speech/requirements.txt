@@ -1,4 +1,7 @@
 librosa==0.10.1
 matplotlib==3.8.4
+openai==1.23.6
 pandas==2.2.2
 pre-commit==3.7.0
+python-dotenv==1.0.1
+scipe==1.13.0
