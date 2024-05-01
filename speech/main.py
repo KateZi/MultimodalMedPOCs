@@ -17,7 +17,10 @@ if __name__ == "__main__":
 
     filtered_paths = util.filter_audios(samples, low=200, high=4000)
 
-    S, f0, harmonics = util.compute_features(filtered_paths)
-    util.plot_f0_harmonics(S, f0, harmonics)
+    _, words = util.transcribe(filtered_paths)
+    waveforms, S, f0, harmonics = util.compute_features(filtered_paths)
+    util.plot_harmonics_transcription(
+        S, f0, transcripts_arr=words, waveforms_arr=waveforms
+    )
 
     plt.show()

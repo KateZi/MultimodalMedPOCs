@@ -173,3 +173,4 @@ speech/out/*
 !*.gitkeep
 
 .DS_Store
+speech/figures/*
