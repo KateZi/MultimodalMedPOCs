@@ -13,6 +13,7 @@ from scipy.io.wavfile import write
 
 SAMPLE_RATE = 22050
 N_FFT = 2048
+N_MELS = 128
 HARMONICS = np.arange(1, 11)
 CONTEXT = "This is a transcription of a Parkinson's disease patient. Keep punctuation. Keep stuttering. So uhm, yeaah. Okay, ehm, uuuh."
 
@@ -27,10 +28,13 @@ def filter_audios(
     """
     filtered_paths = []
     for audio_path in audio_paths:
+        if not os.path.exists(audio_path):
+            print(f"Could not locate {audio_path}, skipping")
+            continue
         audio_path = audio_path.split(os.sep)
         filtered_path = os.path.join(
             "out",
-            audio_path[2],
+            audio_path[1],
             f"{audio_path[-1].split('.')[0]}_{low}_{high}.wav",
         )
         filtered_paths.append(filtered_path)
@@ -94,7 +98,7 @@ def calc_mel_spec(
     n_mels: int = 128,
     log: bool = True,
 ):
-    """Calculates melspectrograms for a list of audios"""
+    """Calculates mel-spectrograms for a list of audios"""
     if sampling_rates is None:
         sampling_rates = np.repeat([SAMPLE_RATE], len(time_series_list))
     spectras = []
@@ -188,6 +192,7 @@ def compute_features(
     sr: int = SAMPLE_RATE,
     harmonics: list = HARMONICS,
     n_fft: int = N_FFT,
+    n_mels: int = N_MELS,
 ):
     """Computes and returns waveform of the audios, spectrogram,
     fundamental frequency and harmonics' energy
@@ -203,6 +208,7 @@ def compute_features(
         f0_arr.append(f0)
 
         S = np.abs(librosa.stft(y, n_fft=N_FFT))
+        # S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=n_mels)
         S_arr.append(S)
 
         frequencies = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
@@ -217,10 +223,10 @@ def compute_features(
 def plot_f0(
     S_arr: list,
     f0_arr: list,
-    times_arr: list,
     y_axis="log",
     harmonics: list = HARMONICS,
     ax: Optional[list] = None,
+    titles: Optional[list] = None,
 ):
     """Plots the fundamental frequency overlaid over a spectrogram
     and highlights the harmonics with the 'harmonics' range.
@@ -229,7 +235,8 @@ def plot_f0(
         ncols = len(S_arr)
         _, ax = plt.subplots(figsize=(12, 6), ncols=ncols)
 
-    for i, (S, f0, times) in enumerate(zip(S_arr, f0_arr, times_arr)):
+    for i, (S, f0) in enumerate(zip(S_arr, f0_arr)):
+        times = librosa.times_like(S)
         librosa.display.specshow(
             librosa.amplitude_to_db(S, ref=np.max),
             y_axis=y_axis,
@@ -241,6 +248,8 @@ def plot_f0(
                 ax[i].plot(times, f0, linewidth=2, color="white", label="f0")
             else:
                 ax[i].plot(times, h * f0, label=f"{h}*f0")
+        if titles:
+            ax[i].set_title(titles[i])
 
 
 def plot_transcripts(
@@ -273,6 +282,8 @@ def plot_transcripts(
 
         ax[i].set_xlim(times[0], times[-1])
 
+        ax[i].set_ylabel("Loudness")
+
 
 def plot_harmonics(
     harmonics_arr: list, harmonics: list = HARMONICS, ax: Optional[list] = None
@@ -297,7 +308,8 @@ def plot_harmonics_transcription(
     harmonics_arr: Optional[list] = None,
     transcripts_arr: Optional[list] = None,
     waveforms_arr: Optional[list] = None,
-    y_axis="log",
+    y_axis: str = "log",
+    titles: Optional[list] = None,
 ):
     """Plots the spectragrams with f0 and harmonics overlay
     Optionally: plots Harmonics energy through time
@@ -312,10 +324,9 @@ def plot_harmonics_transcription(
         nrows += 1
     if harmonics_flag:
         nrows += 1
-    _, ax = plt.subplots(figsize=(10, 4), nrows=nrows, ncols=len(S_arr))
+    _, ax = plt.subplots(figsize=(10, 4), nrows=nrows, ncols=len(S_arr), sharey="row")
 
-    times = [librosa.times_like(S) for S in S_arr]
-    plot_f0(S_arr, f0_arr, times, y_axis, ax=ax[0])
+    plot_f0(S_arr, f0_arr, y_axis, ax=ax[0], titles=titles)
     if transcripts_flag:
         plot_transcripts(transcripts_arr, waveforms_arr, ax=ax[1])
     if harmonics_flag:

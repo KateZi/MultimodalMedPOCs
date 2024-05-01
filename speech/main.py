@@ -5,8 +5,8 @@ import util
 
 if __name__ == "__main__":
 
-    audio_dir = "speech/data/mjfox/"
-    out_dir = "speech/out/mjfox/"
+    audio_dir = "data/mjfox/"
+    out_dir = "out/mjfox/"
 
     # audio_dir = "speech/data/steven/"
     # out_dir = "speech/out/steven/"
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     _, words = util.transcribe(filtered_paths)
     waveforms, S, f0, harmonics = util.compute_features(filtered_paths)
     util.plot_harmonics_transcription(
-        S, f0, transcripts_arr=words, waveforms_arr=waveforms
+        S, f0, transcripts_arr=words, waveforms_arr=waveforms, titles=["Ben", "MJF"]
     )
 
     plt.show()
