@@ -35,10 +35,10 @@ def filter_audios(
             audio_path[1],
             f"{audio_path[-1].split('.')[0]}_{low}_{high}.wav",
         )
-        filtered_paths.append(filtered_path)
         if overwrite or not os.path.exists(filtered_path):
             ffmpeg_call = [
                 "ffmpeg",
+                "-y",
                 "-i",
                 os.sep.join(audio_path),
                 "-af",
@@ -53,8 +53,42 @@ def filter_audios(
                 pass
             print(f"Saving filtered audio at {filtered_path}")
             subprocess.call(ffmpeg_call)
+        filtered_paths.append(filtered_path)
 
     return filtered_paths
+
+
+def normalize_loudness(audio_paths: list, overwrite: bool = False):
+    normalized_paths = []
+    for audio_path in audio_paths:
+        if not os.path.exists(audio_path):
+            print(f"Could not locate {audio_path}, skipping")
+            continue
+        audio_path = audio_path.split(os.sep)
+        normalized_path = os.path.join(
+            "out",
+            audio_path[1],
+            f"{audio_path[-1].split('.')[0]}_norm.wav",
+        )
+        if overwrite or not os.path.exists(normalized_path):
+            subprocess.call(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    filtered_path,
+                    "-filter:a",
+                    "speechnorm, loudnorm",
+                    "-c:a",
+                    "ac3",
+                    "-c:v",
+                    "copy",
+                    norm_path,
+                ]
+            )
+        normalized_paths.append(normalized_path)
+
+    return normalized_paths
 
 
 def separate_harmonics_percussion(
