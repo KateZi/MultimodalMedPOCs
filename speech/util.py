@@ -5,17 +5,15 @@ from typing import Optional
 import librosa
 import matplotlib.pyplot as plt
 import numpy as np
-import openai
 import pandas as pd
-from dotenv import find_dotenv, load_dotenv
-from openai import OpenAI
 from scipy.io.wavfile import write
+
+# import noisereduce
 
 SAMPLE_RATE = 22050
 N_FFT = 2048
 N_MELS = 128
 HARMONICS = np.arange(1, 11)
-CONTEXT = "This is a transcription of a Parkinson's disease patient. Keep punctuation. Keep stuttering. So uhm, yeaah. Okay, ehm, uuuh."
 
 
 def filter_audios(
@@ -202,6 +200,7 @@ def compute_features(
 
     for audio_path in audio_paths:
         y, sr = librosa.load(audio_path, sr=sr)
+        # y = noisereduce.reduce_noise(y=y, sr=sr)
         waveforms.append(y)
 
         f0, *_ = librosa.pyin(y=y, sr=sr, fmin=20, fmax=350)
@@ -336,35 +335,8 @@ def plot_harmonics_transcription(
     plt.draw()
 
 
-def transcribe_oai(audio_file_path: str, context: str = ""):
-    """Transcribes a single audio using OpenAI"""
-    res = load_dotenv(find_dotenv())
-    openai.api_key = os.getenv("OPENAI_API_KEY")
-    if not res and not openai.api_key:
-        raise Exception("Please provide and OPENAI_API_KEY")
-
-    client = OpenAI()
-    audio_file = open(audio_file_path, "rb")
-    transcription = client.audio.transcriptions.create(
-        model="whisper-1",
-        file=audio_file,
-        prompt=context,
-        timestamp_granularities=["word"],
-        response_format="verbose_json",
+def get_f0_stats(f0_arr: list):
+    """Returns mean and std of f0"""
+    return np.array([np.nanmean(f0) for f0 in f0_arr]), np.array(
+        [np.nanstd(f0) for f0 in f0_arr]
     )
-
-    return transcription
-
-
-def transcribe(audio_paths: list, context: str = CONTEXT):
-    """Sends audios for transcription
-    Returns texts and words level separately.
-    """
-    texts, words = [], []
-    for audio_path in audio_paths:
-        transcription = transcribe_oai(audio_file_path=audio_path, context=context)
-
-        texts.append(transcription.text)
-        words.append(transcription.words)
-
-    return texts, words
