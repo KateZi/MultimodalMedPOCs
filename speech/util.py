@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.io.wavfile import write
+from Signal_Analysis.features import signal as SA
 
 # import noisereduce
 
@@ -247,6 +248,7 @@ def compute_features(
 
         f0, voiced, _ = librosa.pyin(y=y, sr=sr, fmin=1, fmax=400)
         features[key]["f0"] = f0
+        features[key]["voice_flag"] = voiced
 
         S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=n_mels, fmax=FMAX)
         features[key]["S"] = S
@@ -381,16 +383,47 @@ def plot_harmonics_transcription(
 
 
 def get_stats(features: dict):
-    """Returns discrete statistics over the calculated features"""
+    """Returns a dataframe of discrete statistics over the calculated features"""
     res = {key: {} for key in features.keys()}
     for key in features.keys():
         waveform = features[key]["waveform"]
-        res[key]["shimmer"] = np.mean(np.abs(np.diff(waveform)) / waveform[:-1])
         f0 = features[key]["f0"]
+        sr = features[key]["sr"]
+
         res[key]["f0_mean"] = np.nanmean(f0)
         res[key]["f0_std"] = np.nanstd(f0)
-        res[key]["jitter"] = np.mean(np.abs(np.diff(f0)) / f0[:-1])
-        res[key]["hnr"] = np.sum(features[key]["harmonics_energy"] ** 2) / np.sum(
-            waveform**2
-        )
+        # res[key]["shimmer"] = np.mean(np.abs(np.diff(waveform)) / waveform[:-1])
+        jitter = SA.get_Jitter(waveform, sr)
+        res[key]["jitter_ddp"] = jitter["ddp"]
+        res[key]["jitter_local"] = jitter["local"]
+        res[key]["jitter_local_absolute"] = jitter["local, absolute"]
+        res[key]["jitter_ppq5"] = jitter["ppq5"]
+        res[key]["jitter_rap"] = jitter["rap"]
+        res[key]["hnr"] = SA.get_HNR(waveform, sr)
+    res = pd.DataFrame.from_dict(res, orient="index")
     return res
+
+
+def plot_radar(stats: pd.DataFrame, dropna=True):
+    """Plots stats in a radar chart form"""
+    if dropna:
+        stats = stats.dropna(axis=1)
+    fig = plt.figure()
+    ax = fig.add_subplot(111, polar=True)
+    for idx in stats.index:
+        labels = stats.columns
+        values = np.log10(stats.loc[idx, labels].values)
+        angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False)
+        # close the plot
+        labels = np.concatenate((labels, [labels[0]]))
+        values = np.concatenate((values, [values[0]]))
+        angles = np.concatenate((angles, [angles[0]]))
+
+        ax.plot(angles, values, "o-", linewidth=2, label=idx)
+        ax.fill(angles, values, alpha=0.25)
+
+    ax.set_thetagrids(angles * 180 / np.pi, labels)
+    ax.grid(True)
+    plt.legend()
+
+    plt.draw()

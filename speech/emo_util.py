@@ -1,5 +1,6 @@
 import librosa
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 from transformers import Wav2Vec2Processor
@@ -110,7 +111,9 @@ def emo_audio(audio_path: str, device: str = "cpu"):
 
 
 def emo_audios(audio_paths: dict, device: str = "cpu"):
+    """Extracts emotions for the dict of audios, returns a pd.DataFrame"""
     emo_res = {}
     for key, audio_path in audio_paths.items():
         emo_res[key] = emo_audio(audio_path, device)
+    emo_res = pd.DataFrame.from_dict(emo_res, orient="index")
     return emo_res

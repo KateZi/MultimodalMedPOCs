@@ -29,7 +29,7 @@ def transcribe_oai(audio_file_path: str, context: str = ""):
 
 def transcribe(audio_paths: dict, context: str = CONTEXT):
     """Sends audios for transcription
-    Returns texts and words level separately.
+    Returns dictionary containing the results.
     """
     transcription_res = {key: {} for key in audio_paths.keys()}
     texts, words = [], []
