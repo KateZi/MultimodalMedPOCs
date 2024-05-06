@@ -390,7 +390,7 @@ def get_stats(features: dict):
         res[key]["f0_mean"] = np.nanmean(f0)
         res[key]["f0_std"] = np.nanstd(f0)
         res[key]["jitter"] = np.mean(np.abs(np.diff(f0)) / f0[:-1])
-        res[key]["hnr"] = np.sum(features[key]["harmonics"] ** 2) / np.sum(
+        res[key]["hnr"] = np.sum(features[key]["harmonics_energy"] ** 2) / np.sum(
             waveform**2
         )
     return res
