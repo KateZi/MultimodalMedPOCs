@@ -1,5 +1,6 @@
 import os
 import subprocess
+import warnings
 from typing import Optional
 
 import librosa
@@ -10,10 +11,16 @@ from scipy.io.wavfile import write
 
 # import noisereduce
 
-SAMPLE_RATE = 22050
+
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+
+SAMPLE_RATE = 16_000
 N_FFT = 2048
 N_MELS = 128
 HARMONICS = np.arange(1, 11)
+FMAX = 5000
 
 
 def filter_audios(
@@ -76,14 +83,14 @@ def normalize_loudness(audio_paths: list, overwrite: bool = False):
                     "ffmpeg",
                     "-y",
                     "-i",
-                    filtered_path,
+                    os.sep.join(audio_path),
                     "-filter:a",
                     "speechnorm, loudnorm",
                     "-c:a",
                     "ac3",
                     "-c:v",
                     "copy",
-                    norm_path,
+                    normalized_path,
                 ]
             )
         normalized_paths.append(normalized_path)
@@ -220,7 +227,7 @@ def calc_snr(signal: np.ndarray, window_size: int = 30):
 
 
 def compute_features(
-    audio_paths: list,
+    audio_paths: dict,
     sr: int = SAMPLE_RATE,
     harmonics: list = HARMONICS,
     n_fft: int = N_FFT,
@@ -230,75 +237,80 @@ def compute_features(
     fundamental frequency and harmonics' energy
     These features are useful for comparative figures.
     """
-    waveforms, S_arr, f0_arr, harmonics_arr = [], [], [], []
+    features = {key: {} for key in audio_paths.keys()}
 
-    for audio_path in audio_paths:
+    for key, audio_path in audio_paths.items():
         y, sr = librosa.load(audio_path, sr=sr)
         # y = noisereduce.reduce_noise(y=y, sr=sr)
-        waveforms.append(y)
+        features[key]["waveform"] = y
+        features[key]["sr"] = sr
 
-        f0, *_ = librosa.pyin(y=y, sr=sr, fmin=20, fmax=350)
-        f0_arr.append(f0)
+        f0, voiced, _ = librosa.pyin(y=y, sr=sr, fmin=1, fmax=400)
+        features[key]["f0"] = f0
 
-        S = np.abs(librosa.stft(y, n_fft=N_FFT))
-        # S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=n_mels)
-        S_arr.append(S)
+        S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=n_mels, fmax=FMAX)
+        features[key]["S"] = S
 
+        S = np.abs(librosa.stft(y=y, n_fft=N_FFT))
         frequencies = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
         harmonic_energy = librosa.f0_harmonics(
             S, f0=f0, harmonics=harmonics, freqs=frequencies
         )
-        harmonics_arr.append(harmonic_energy)
+        features[key]["harmonics_energy"] = harmonic_energy
 
-    return waveforms, S_arr, f0_arr, harmonics_arr
+    return features
 
 
 def plot_f0(
-    S_arr: list,
-    f0_arr: list,
-    y_axis="log",
+    features: dict,
+    y_axis: str = "log",
     harmonics: list = HARMONICS,
     ax: Optional[list] = None,
-    titles: Optional[list] = None,
+    harmonics_flag=True,
 ):
     """Plots the fundamental frequency overlaid over a spectrogram
     and highlights the harmonics with the 'harmonics' range.
     """
     if ax is None:
-        ncols = len(S_arr)
+        ncols = len(features)
         _, ax = plt.subplots(figsize=(12, 6), ncols=ncols)
 
-    for i, (S, f0) in enumerate(zip(S_arr, f0_arr)):
-        times = librosa.times_like(S)
+    for i, (key, feature) in enumerate(features.items()):
+        S = feature["S"]
+        f0 = feature["f0"]
+        sr = feature["sr"]
+        times = librosa.times_like(S, sr=sr)
         librosa.display.specshow(
             librosa.amplitude_to_db(S, ref=np.max),
+            sr=sr,
             y_axis=y_axis,
             x_axis="time",
             ax=ax[i],
+            fmax=FMAX,
         )
-        for h in np.arange(1, len(harmonics) + 1):
-            if h == 1:
-                ax[i].plot(times, f0, linewidth=2, color="white", label="f0")
-            else:
+        ax[i].plot(times, f0, linewidth=2, color="white", label="f0")
+        if harmonics_flag:
+            for h in np.arange(2, len(harmonics) + 1):
                 ax[i].plot(times, h * f0, label=f"{h}*f0")
-        if titles:
-            ax[i].set_title(titles[i])
+        ax[i].set_title(key)
 
 
 def plot_transcripts(
-    transcripts_arr: list,
-    waveforms_arr: list,
-    sr: int = SAMPLE_RATE,
+    transcripts: dict,
+    features: dict,
     ax: Optional[list] = None,
 ):
     """Plots transcription - words with timing; overlaud over the audio waveform"""
     if ax is None:
-        ncols = len(transcripts_arr)
+        ncols = len(transcripts)
         _, ax = plt.subplots(figsize=(12, 6), ncols=ncols)
 
-    for i, (words, waveform) in enumerate(zip(transcripts_arr, waveforms_arr)):
-        duration = librosa.get_duration(y=waveform)
-        times = np.arange(0, duration, 1 / sr)
+    for i, key in enumerate(transcripts.keys()):
+        words = transcripts[key]["words"]
+        waveform = features[key]["waveform"]
+        sr = features[key]["sr"]
+        duration = librosa.get_duration(y=waveform, sr=sr)
+        times = np.linspace(0, duration, len(waveform))
 
         ax[i].plot(times, waveform)
 
@@ -319,58 +331,66 @@ def plot_transcripts(
 
 
 def plot_harmonics(
-    harmonics_arr: list, harmonics: list = HARMONICS, ax: Optional[list] = None
+    features: dict, harmonics_mult: list = HARMONICS, ax: Optional[list] = None
 ):
     """Plots harmonics energies through time"""
     if ax is None:
-        ncols = len(harmonics_arr)
+        ncols = len(features)
         _, ax = plt.subplots(figsize=(12, 6), ncols=ncols)
-    for i, harmonics in enumerate(harmonics_arr):
+    for i, (i, feature) in enumerate(features.items()):
+        harmonics = feature["harmonics_energy"]
+        sr = feature["sr"]
         librosa.display.specshow(
-            librosa.amplitude_to_db(harmonics, ref=np.max), x_axis="time", ax=ax[-1, i]
+            librosa.amplitude_to_db(harmonics, ref=np.max),
+            sr=sr,
+            x_axis="time",
+            ax=ax[-1, i],
         )
 
-        ax[i].set_yticks(harmonics - 1)
-        ax[i].set_yticklabels(harmonics)
+        ax[i].set_yticks(harmonics_mult - 1)
+        ax[i].set_yticklabels(harmonics_mult)
         ax[i].set(ylabel="Harmonics")
 
 
 def plot_harmonics_transcription(
-    S_arr: list,
-    f0_arr: list,
-    harmonics_arr: Optional[list] = None,
-    transcripts_arr: Optional[list] = None,
-    waveforms_arr: Optional[list] = None,
+    features: dict,
+    transcripts: Optional[list] = None,
     y_axis: str = "log",
-    titles: Optional[list] = None,
+    harmonics_flag=True,
 ):
     """Plots the spectragrams with f0 and harmonics overlay
     Optionally: plots Harmonics energy through time
                 plots transcription through time
     """
 
-    transcripts_flag = transcripts_arr is not None
-    harmonics_flag = harmonics_arr is not None
-
-    nrows = 1
-    if transcripts_flag:
-        nrows += 1
+    nrows = 2
     if harmonics_flag:
         nrows += 1
-    _, ax = plt.subplots(figsize=(10, 4), nrows=nrows, ncols=len(S_arr), sharey="row")
+    _, ax = plt.subplots(
+        figsize=(10, 4), nrows=nrows, ncols=len(features), sharey="row"
+    )
 
-    plot_f0(S_arr, f0_arr, y_axis, ax=ax[0], titles=titles)
-    if transcripts_flag:
-        plot_transcripts(transcripts_arr, waveforms_arr, ax=ax[1])
+    plot_f0(features, y_axis, ax=ax[0], harmonics_flag=harmonics_flag)
+    plot_transcripts(transcripts, features, ax=ax[1])
+
     if harmonics_flag:
-        prol_harmonics(harmonics_arr, ax=ax[-1])
+        prol_harmonics(features, ax=ax[-1])
 
     plt.tight_layout()
     plt.draw()
 
 
-def get_f0_stats(f0_arr: list):
-    """Returns mean and std of f0"""
-    return np.array([np.nanmean(f0) for f0 in f0_arr]), np.array(
-        [np.nanstd(f0) for f0 in f0_arr]
-    )
+def get_stats(features: dict):
+    """Returns discrete statistics over the calculated features"""
+    res = {key: {} for key in features.keys()}
+    for key in features.keys():
+        waveform = features[key]["waveform"]
+        res[key]["shimmer"] = np.mean(np.abs(np.diff(waveform)) / waveform[:-1])
+        f0 = features[key]["f0"]
+        res[key]["f0_mean"] = np.nanmean(f0)
+        res[key]["f0_std"] = np.nanstd(f0)
+        res[key]["jitter"] = np.mean(np.abs(np.diff(f0)) / f0[:-1])
+        res[key]["hnr"] = np.sum(features[key]["harmonics"] ** 2) / np.sum(
+            waveform**2
+        )
+    return res

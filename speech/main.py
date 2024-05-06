@@ -21,21 +21,23 @@ if __name__ == "__main__":
     filtered_paths = util.filter_audios(samples, low=200, high=5000)
     normalized_paths = util.normalize_loudness(filtered_paths)
 
-    _, words = transcribe_util.transcribe(normalized_paths)
-    waveforms, S, f0, harmonics = util.compute_features(normalized_paths)
+    normalized_paths = {"before": normalized_paths[0], "after": normalized_paths[1]}
+
+    # sample_names = ["norm_before_name.wav", "norm_after_name.wav"]
+    # normalized_paths = [os.path.join(out_dir, sample_name) for sample_name in sample_names]
+
+    transcription = transcribe_util.transcribe(normalized_paths)
+    features = util.compute_features(normalized_paths, sr=16_000)
     util.plot_harmonics_transcription(
-        S,
-        f0,
-        transcripts_arr=words,
-        waveforms_arr=waveforms,
-        titles=["before", "after"],
+        features, transcription, harmonics_flag=False, y_axis="mel"
     )
 
     plt.show()
 
-    f0_means, f0_stds = util.get_f0_stats(f0)
+    stats = util.get_stats(features)
     emotions = emo_util.emo_audios(normalized_paths)
-    print("For", sample_names, ":")
-    print("f0_mean: ", f0_means)
-    print("f0_std: ", f0_stds)
-    print("Emotions: ", emotions)
+    for key in stats.keys():
+        print("Stats for ", key, ":")
+        for stat_name, stat in stats[key].items():
+            print(stat_name, ": ", stat)
+        print("Emotions: ", emotions[key])

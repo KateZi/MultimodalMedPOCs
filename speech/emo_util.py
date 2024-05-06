@@ -109,8 +109,8 @@ def emo_audio(audio_path: str, device: str = "cpu"):
     return res_to_dict(process_func(model, processor, audio, sr, device=device))
 
 
-def emo_audios(audio_paths: list, device: str = "cpu"):
-    emo_res = []
-    for audio_path in audio_paths:
-        emo_res.append(emo_audio(audio_path, device))
+def emo_audios(audio_paths: dict, device: str = "cpu"):
+    emo_res = {}
+    for key, audio_path in audio_paths.items():
+        emo_res[key] = emo_audio(audio_path, device)
     return emo_res

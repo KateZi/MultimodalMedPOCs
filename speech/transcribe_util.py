@@ -27,15 +27,16 @@ def transcribe_oai(audio_file_path: str, context: str = ""):
     return transcription
 
 
-def transcribe(audio_paths: list, context: str = CONTEXT):
+def transcribe(audio_paths: dict, context: str = CONTEXT):
     """Sends audios for transcription
     Returns texts and words level separately.
     """
+    transcription_res = {key: {} for key in audio_paths.keys()}
     texts, words = [], []
-    for audio_path in audio_paths:
+    for key, audio_path in audio_paths.items():
         transcription = transcribe_oai(audio_file_path=audio_path, context=context)
 
-        texts.append(transcription.text)
-        words.append(transcription.words)
+        transcription_res[key]["text"] = transcription.text
+        transcription_res[key]["words"] = transcription.words
 
-    return texts, words
+    return transcription_res
