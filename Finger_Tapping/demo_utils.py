@@ -31,7 +31,13 @@ def create_tracking_gif(
 ):
     """
     Generates and saves gif of overlayed tracking.
+    Returns -1 if an error occurs
     """
+
+    if not os.path.exists(os.path.join(video_path)):
+        print("Provide a valid video path")
+        return -1
+
     cap = cv2.VideoCapture(video_path)
     total_frame_num = cap.get(cv2.CAP_PROP_FRAME_COUNT)
     out = imageio.get_writer(out_path, mode="I", fps=fps)
@@ -204,6 +210,7 @@ def save_track_feat(
     """
     Shows the results of the hand traking in a concatenated format.
     Hand landmarks overlay and provided feature trajectory.
+    Returns -1 if an error occurs
 
     Keyword arguments:
     video_dir       -- directory containing the video
@@ -216,7 +223,7 @@ def save_track_feat(
     """
     if not os.path.exists(os.path.join(video_dir, video_name)):
         print("Provide a valid video path")
-        return
+        return -1
 
     cap = cv2.VideoCapture(os.path.join(video_dir, video_name))
     total_frame_num = cap.get(cv2.CAP_PROP_FRAME_COUNT)
@@ -246,7 +253,7 @@ def save_track_feat(
     print(f"Gif saved at {out_path}.")
 
 
-def optimize_gif(in_path: str, level: str, out_path: Optional[str] = None):
+def optimize_gif(in_path: str, level: str = "-O2", out_path: Optional[str] = None):
     """
     Optimizes gif using gifsicle. Saves at out_path if any, or overwrites.
 

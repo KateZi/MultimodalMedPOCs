@@ -8,17 +8,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.io.wavfile import write
+from scipy.stats import entropy
 from Signal_Analysis.features import signal as SA
 
 # import noisereduce
 
+plt.rcParams["svg.fonttype"] = "none"
 
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 
 SAMPLE_RATE = 16_000
-N_FFT = 2048
+N_FFT = 512
+HOP_LENGTH = 160
 N_MELS = 128
 HARMONICS = np.arange(1, 11)
 FMAX = 5000
@@ -27,10 +30,13 @@ FMAX = 5000
 def filter_audios(
     audio_paths: list, low: int = 200, high: int = 3000, overwrite: bool = False
 ):
-    """Filters and saves audios using FFMPEG
+    """Filters and saves audios with a suffix "<low>_<high>" using FFMPEG
     if low is None - performs only highpass
     if high is None - only lowpass
     else - bandpass
+
+    TODO: filtered_path only considers case of both low and high,
+            edit for only low and oly high
     """
     filtered_paths = []
     for audio_path in audio_paths:
@@ -67,6 +73,11 @@ def filter_audios(
 
 
 def normalize_loudness(audio_paths: list, overwrite: bool = False):
+    """
+    Normalizes audios and saves them with suffix "_norm"
+    Caution: normalization can disturb the source and
+    information
+    """
     normalized_paths = []
     for audio_path in audio_paths:
         if not os.path.exists(audio_path):
@@ -86,7 +97,7 @@ def normalize_loudness(audio_paths: list, overwrite: bool = False):
                     "-i",
                     os.sep.join(audio_path),
                     "-filter:a",
-                    "speechnorm, loudnorm",
+                    "loudnorm",
                     "-c:a",
                     "ac3",
                     "-c:v",
@@ -206,12 +217,14 @@ def compare_spectras(
 ):
     """Plots the spectrograms for comparison"""
     if ax is None:
-        n_rows = len(spectras_list)
-        n_cols = 1
+        nrows = len(spectras_list)
+        ncols = 1
         _, ax = plt.subplots(figsize=(12, 6), nrows=nrows, ncols=ncols)
 
     for i, spectra in enumerate(spectras_list):
-        im = librosa.display.specshow(spectra, ax=ax[i], y_axis=y_axis)
+        im = librosa.display.specshow(
+            librosa.amplitude_to_db(spectra, ref=np.max), ax=ax[i], y_axis=y_axis
+        )
         plt.colorbar(im, ax=ax[i])
 
     plt.tight_layout()
@@ -219,7 +232,10 @@ def compare_spectras(
 
 
 def calc_snr(signal: np.ndarray, window_size: int = 30):
-    # TODO: do not be lazy and rewrite in python
+    """
+    Calculates signal to noise ratio in a simplified manner
+
+    """
     signal_series = pd.Series(signal)
     rolling_mean = signal_series.rolling(window=window_size).mean()
     rolling_std = signal_series.rolling(window=window_size).std()
@@ -232,33 +248,56 @@ def compute_features(
     sr: int = SAMPLE_RATE,
     harmonics: list = HARMONICS,
     n_fft: int = N_FFT,
+    hop_length: int = HOP_LENGTH,
     n_mels: int = N_MELS,
 ):
-    """Computes and returns waveform of the audios, spectrogram,
-    fundamental frequency and harmonics' energy
+    """Returns a dictionary of features for each file.
+    Includes: waveform, sampling rate, melspectrogram,
+    fundamental frequency and harmonics' energy,
+    as well as paramters used, n_fft and hop_length.
     These features are useful for comparative figures.
     """
     features = {key: {} for key in audio_paths.keys()}
 
     for key, audio_path in audio_paths.items():
+        features[key]["n_fft"] = n_fft
+        features[key]["hop_length"] = hop_length
+
         y, sr = librosa.load(audio_path, sr=sr)
+        y = (y - y.min()) / (y.max() - y.min())
         # y = noisereduce.reduce_noise(y=y, sr=sr)
         features[key]["waveform"] = y
         features[key]["sr"] = sr
 
-        f0, voiced, _ = librosa.pyin(y=y, sr=sr, fmin=1, fmax=400)
+        f0, voiced, _ = librosa.pyin(
+            y=y, sr=sr, fmin=1, fmax=400, hop_length=hop_length, frame_length=n_fft
+        )
+
         features[key]["f0"] = f0
         features[key]["voice_flag"] = voiced
 
-        S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=n_mels, fmax=FMAX)
-        features[key]["S"] = S
-
-        S = np.abs(librosa.stft(y=y, n_fft=N_FFT))
+        S = np.abs(librosa.stft(y=y, n_fft=n_fft, hop_length=hop_length))
         frequencies = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
         harmonic_energy = librosa.f0_harmonics(
-            S, f0=f0, harmonics=harmonics, freqs=frequencies
+            S,
+            f0=f0,
+            harmonics=harmonics,
+            freqs=frequencies,
         )
         features[key]["harmonics_energy"] = harmonic_energy
+        features[key]["salience"] = librosa.salience(
+            S, freqs=frequencies, harmonics=harmonics, fill_value=0
+        )
+
+        S = librosa.feature.melspectrogram(
+            S=S**2,
+            sr=sr,
+            n_fft=n_fft,
+            hop_length=hop_length,
+            n_mels=n_mels,
+            fmax=FMAX,
+        )
+        features[key]["S"] = S
 
     return features
 
@@ -271,7 +310,8 @@ def plot_f0(
     harmonics_flag=True,
 ):
     """Plots the fundamental frequency overlaid over a spectrogram
-    and highlights the harmonics with the 'harmonics' range.
+    and if harmonics_flag==True, highlights the harmonics within
+    the 'harmonics' range.
     """
     if ax is None:
         ncols = len(features)
@@ -281,7 +321,9 @@ def plot_f0(
         S = feature["S"]
         f0 = feature["f0"]
         sr = feature["sr"]
-        times = librosa.times_like(S, sr=sr)
+        n_fft = feature["n_fft"]
+        hop_length = feature["hop_length"]
+        times = librosa.times_like(S, sr=sr, hop_length=hop_length, n_fft=n_fft)
         librosa.display.specshow(
             librosa.amplitude_to_db(S, ref=np.max),
             sr=sr,
@@ -289,12 +331,18 @@ def plot_f0(
             x_axis="time",
             ax=ax[i],
             fmax=FMAX,
+            n_fft=n_fft,
+            hop_length=hop_length,
         )
         ax[i].plot(times, f0, linewidth=2, color="white", label="f0")
         if harmonics_flag:
             for h in np.arange(2, len(harmonics) + 1):
                 ax[i].plot(times, h * f0, label=f"{h}*f0")
         ax[i].set_title(key)
+        ax[i].set_xticks([])
+        ax[i].set_xlabel("")
+        if i != 0:
+            ax[i].set_ylabel("")
 
 
 def plot_transcripts(
@@ -302,7 +350,8 @@ def plot_transcripts(
     features: dict,
     ax: Optional[list] = None,
 ):
-    """Plots transcription - words with timing; overlaud over the audio waveform"""
+    """Plots transcription - words with timing;
+    overlaud over the audio waveform"""
     if ax is None:
         ncols = len(transcripts)
         _, ax = plt.subplots(figsize=(12, 6), ncols=ncols)
@@ -311,7 +360,9 @@ def plot_transcripts(
         words = transcripts[key]["words"]
         waveform = features[key]["waveform"]
         sr = features[key]["sr"]
-        duration = librosa.get_duration(y=waveform, sr=sr)
+        new_sr = 4_000
+        waveform = librosa.resample(waveform, orig_sr=sr, target_sr=new_sr)
+        duration = librosa.get_duration(y=waveform, sr=new_sr)
         times = np.linspace(0, duration, len(waveform))
 
         ax[i].plot(times, waveform)
@@ -324,12 +375,13 @@ def plot_transcripts(
 
         ax[i].set_xticks(ticks)
         ax[i].set_xticklabels(
-            [word["word"] for word in words], rotation=90, ha="center"
+            [word["word"] for word in words], rotation=30, ha="center"
         )
 
         ax[i].set_xlim(times[0], times[-1])
-
-        ax[i].set_ylabel("Loudness")
+        ax[i].set_yticks([])
+        if i == 0:
+            ax[i].set_ylabel("Loudness")
 
 
 def plot_harmonics(
@@ -359,6 +411,8 @@ def plot_harmonics_transcription(
     transcripts: Optional[list] = None,
     y_axis: str = "log",
     harmonics_flag=True,
+    title: str = None,
+    save_path: str = None,
 ):
     """Plots the spectragrams with f0 and harmonics overlay
     Optionally: plots Harmonics energy through time
@@ -368,7 +422,7 @@ def plot_harmonics_transcription(
     nrows = 2
     if harmonics_flag:
         nrows += 1
-    _, ax = plt.subplots(
+    fig, ax = plt.subplots(
         figsize=(10, 4), nrows=nrows, ncols=len(features), sharey="row"
     )
 
@@ -378,43 +432,82 @@ def plot_harmonics_transcription(
     if harmonics_flag:
         prol_harmonics(features, ax=ax[-1])
 
+    if title is not None:
+        fig.suptitle(title)
+
     plt.tight_layout()
     plt.draw()
+
+    if save_path is not None:
+        fig.savefig(save_path)
+
+
+def runs_of_values(arr: np.ndarray):
+    """Returns an array of begin and end indeces of runs of non-nan values"""
+    return np.where(np.diff(~np.isnan(arr)))[0].reshape(-1, 2) + 1
+
+
+def get_Shimmer(waveform: np.ndarray, f0: np.ndarray):
+    """Calculates voice shimmer"""
+    runs_of_f0 = runs_of_values(f0)
+    A = np.array([np.ptp(waveform[b:e]) for b, e in runs_of_f0])
+    shimmer = np.sum([abs(20 * np.log10(A[1:] / A[:-1]))])
+    shimmer = shimmer / (len(A) - 1)
+    return shimmer
 
 
 def get_stats(features: dict):
     """Returns a dataframe of discrete statistics over the calculated features"""
+    pitch_max = 400
     res = {key: {} for key in features.keys()}
     for key in features.keys():
         waveform = features[key]["waveform"]
         f0 = features[key]["f0"]
         sr = features[key]["sr"]
+        # harmonics_energy = features[key]["harmonics_energy"]
 
-        res[key]["f0_mean"] = np.nanmean(f0)
-        res[key]["f0_std"] = np.nanstd(f0)
-        # res[key]["shimmer"] = np.mean(np.abs(np.diff(waveform)) / waveform[:-1])
+        res[key]["Pitch (inversed)"] = pitch_max - np.nanmean(f0)
+        res[key]["Intonation variability"] = np.nanstd(f0)
+        res[key]["Speechiness"] = 1 / np.nanmean(entropy(features[key]["S"], axis=0))
+        res[key]["Breathiness (inversed)"] = 1 / get_Shimmer(waveform, f0)
+
         jitter = SA.get_Jitter(waveform, sr)
-        res[key]["jitter_ddp"] = jitter["ddp"]
-        res[key]["jitter_local"] = jitter["local"]
-        res[key]["jitter_local_absolute"] = jitter["local, absolute"]
-        res[key]["jitter_ppq5"] = jitter["ppq5"]
-        res[key]["jitter_rap"] = jitter["rap"]
-        res[key]["hnr"] = SA.get_HNR(waveform, sr)
+        res[key]["Voice roughness (inversed)"] = 1 / (jitter["rap"])
+        res[key]["Voice clarity"] = SA.get_HNR(waveform, sr)
+
+        # add a small constant to avoid high crossing rate at silence (if want)
+        # zero_cross_rate = librosa.feature.zero_crossing_rate(waveform+0.0001, frame_length=N_FFT, hop_length=HOP_LENGTH)
+        # zero_cross_rate = zero_cross_rate[np.where(zero_cross_rate<np.median(zero_cross_rate))[0]]
+        # res[key]["Voice smoothness"] = 1/zero_cross_rate.mean()
+        # res[key]["Voice strength"] = harmonics_energy.sum()
+
     res = pd.DataFrame.from_dict(res, orient="index")
     return res
 
 
-def plot_radar(stats: pd.DataFrame, dropna=True):
+def plot_radar(
+    stats: pd.DataFrame, dropna: bool = True, title: str = None, save_path: str = None
+):
     """Plots stats in a radar chart form"""
     if dropna:
         stats = stats.dropna(axis=1)
+    stats = (100.0 * stats / stats.sum()).round(0)
+    stats -= 30
+
     fig = plt.figure()
     ax = fig.add_subplot(111, polar=True)
+    # Direction of the zero angle to the north (upwards)
+    ax.set_theta_zero_location("N")
+    ax.set_yticklabels([])
+    # Make radial gridlines appear behind other elements
+    ax.spines["polar"].set_zorder(1)
+    ax.spines["polar"].set_color("lightgrey")
+
     for idx in stats.index:
         labels = stats.columns
-        values = np.log10(stats.loc[idx, labels].values)
+        values = stats.loc[idx, labels].values
+        # values = np.log10(values)
         angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False)
-        # close the plot
         labels = np.concatenate((labels, [labels[0]]))
         values = np.concatenate((values, [values[0]]))
         angles = np.concatenate((angles, [angles[0]]))
@@ -422,8 +515,14 @@ def plot_radar(stats: pd.DataFrame, dropna=True):
         ax.plot(angles, values, "o-", linewidth=2, label=idx)
         ax.fill(angles, values, alpha=0.25)
 
-    ax.set_thetagrids(angles * 180 / np.pi, labels)
+    ax.set_thetagrids(angles * 180 / np.pi, labels, rotation=30)
     ax.grid(True)
-    plt.legend()
+    plt.legend(loc="upper right", bbox_to_anchor=(1.3, 1.1))
+
+    if title is not None:
+        fig.suptitle(title)
 
     plt.draw()
+
+    if save_path is not None:
+        fig.savefig(save_path)
