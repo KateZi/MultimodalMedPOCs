@@ -2,6 +2,7 @@ import os
 
 import emo_util
 import matplotlib.pyplot as plt
+import plot_util
 import transcribe_util
 import util
 
@@ -25,9 +26,11 @@ if __name__ == "__main__":
 
     normalized_paths = {"Before": normalized_paths[0], "After": normalized_paths[1]}
 
+    plot_util.anim_sync_audios(normalized_paths, out_dir=fig_path)
+
     transcription = transcribe_util.transcribe(normalized_paths)
     features = util.compute_features(normalized_paths, sr=16_000)
-    util.plot_harmonics_transcription(
+    plot_util.plot_harmonics_transcription(
         features,
         transcription,
         harmonics_flag=False,
@@ -39,7 +42,7 @@ if __name__ == "__main__":
     stats = util.get_stats(features)
     emotions = emo_util.emo_audios(normalized_paths)
     stats = stats.join(emotions)
-    util.plot_radar(
+    plot_util.plot_radar(
         stats,
         title="Speech Therapy Results",
         save_path=os.path.join(fig_path, "radar.svg"),
@@ -47,4 +50,4 @@ if __name__ == "__main__":
     # print("Stats for ", sample_names)
     # print(stats)
 
-    plt.show()
+    # plt.show()
