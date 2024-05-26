@@ -4,13 +4,12 @@ import warnings
 from typing import Optional
 
 import librosa
+import noisereduce
 import numpy as np
 import pandas as pd
 from scipy.io.wavfile import write
 from scipy.stats import entropy
 from Signal_Analysis.features import signal as SA
-
-# import noisereduce
 
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -231,13 +230,23 @@ def compute_features(
         features[key]["hop_length"] = hop_length
 
         y, sr = librosa.load(audio_path, sr=sr)
-        y = (y - y.min()) / (y.max() - y.min())
-        # y = noisereduce.reduce_noise(y=y, sr=sr)
+        y = noisereduce.reduce_noise(y=y, sr=sr, n_fft=n_fft, hop_length=hop_length)
+        # y = (y - y.min()) / (y.max() - y.min())
+        # y = (y - y.mean()) / (y.std())
+        amp = 1.0
+        y = amp * y / max(abs(max(y)), abs(min(y)))
         features[key]["waveform"] = y
         features[key]["sr"] = sr
 
         f0, voiced, _ = librosa.pyin(
-            y=y, sr=sr, fmin=1, fmax=400, hop_length=hop_length, frame_length=n_fft
+            y=y,
+            sr=sr,
+            fmin=40,
+            fmax=400,
+            hop_length=hop_length,
+            frame_length=n_fft,
+            max_transition_rate=20,
+            n_thresholds=10,
         )
 
         features[key]["f0"] = f0
@@ -271,7 +280,10 @@ def compute_features(
 
 def runs_of_values(arr: np.ndarray):
     """Returns an array of begin and end indeces of runs of non-nan values"""
-    return np.where(np.diff(~np.isnan(arr)))[0].reshape(-1, 2) + 1
+    runs = np.where(np.diff(~np.isnan(arr)))[0]
+    if runs.shape[0] % 2 != 0:
+        runs = np.hstack((runs, arr.shape[-1] - 1))
+    return runs.reshape(-1, 2) + 1
 
 
 def get_Shimmer(waveform: np.ndarray, f0: np.ndarray):
@@ -298,9 +310,9 @@ def get_stats(features: dict):
         res[key]["Speechiness"] = 1 / np.nanmean(entropy(features[key]["S"], axis=0))
         res[key]["Breathiness (inversed)"] = 1 / get_Shimmer(waveform, f0)
 
-        jitter = SA.get_Jitter(waveform, sr)
-        res[key]["Voice roughness (inversed)"] = 1 / (jitter["rap"])
-        res[key]["Voice clarity"] = SA.get_HNR(waveform, sr)
+        # jitter = SA.get_Jitter(waveform, sr)
+        # res[key]["Voice roughness (inversed)"] = 1 / (jitter["local"])
+        # res[key]["Voice clarity"] = SA.get_HNR(waveform, sr, min_pitch=40)
 
         # add a small constant to avoid high crossing rate at silence (if want)
         # zero_cross_rate = librosa.feature.zero_crossing_rate(waveform+0.0001, frame_length=N_FFT, hop_length=HOP_LENGTH)

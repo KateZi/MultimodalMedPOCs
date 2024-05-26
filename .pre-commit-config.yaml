@@ -14,3 +14,14 @@ repos:
     hooks:
     -   id: isort
         args: ["--profile", "black"]
+-   repo: https://github.com/nbQA-dev/nbQA
+    rev: 1.8.5
+    hooks:
+    -   id: nbqa-black
+    -   id: nbqa-isort
+        args: ["--float-to-top"]
+-   repo: https://github.com/kynan/nbstripout
+    rev: main
+    hooks:
+    -   id: nbstripout
+        files: ".ipynb"

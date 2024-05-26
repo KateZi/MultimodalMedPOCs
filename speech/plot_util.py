@@ -136,7 +136,7 @@ def plot_f0(
     """
     if ax is None:
         ncols = len(features)
-        _, ax = plt.subplots(figsize=(12, 6), ncols=ncols)
+        _, ax = plt.subplots(figsize=(12, 6), ncols=ncols, sharex=False)
 
     for i, (key, feature) in enumerate(features.items()):
         S = feature["S"]
@@ -144,7 +144,6 @@ def plot_f0(
         sr = feature["sr"]
         n_fft = feature["n_fft"]
         hop_length = feature["hop_length"]
-        times = librosa.times_like(S, sr=sr, hop_length=hop_length, n_fft=n_fft)
         librosa.display.specshow(
             librosa.amplitude_to_db(S, ref=np.max),
             sr=sr,
@@ -155,6 +154,8 @@ def plot_f0(
             n_fft=n_fft,
             hop_length=hop_length,
         )
+        times = librosa.times_like(S, sr=sr, hop_length=hop_length, n_fft=n_fft)
+        times -= times[0]
         ax[i].plot(times, f0, linewidth=2, color="white", label="f0")
         if harmonics_flag:
             for h in np.arange(2, len(harmonics) + 1):

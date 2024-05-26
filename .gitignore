@@ -170,7 +170,10 @@ finger_tapping/data/*
 finger_tapping/model/*
 speech/data/*
 speech/out/*
+fruit_ninja/data/*
+fruit_ninja/metis_defaults
 !*.gitkeep
 
 .DS_Store
 speech/figures/*
+fruit_ninja/figures/*
