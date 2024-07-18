@@ -69,21 +69,27 @@ def plotting_pipeline(
 
 if __name__ == "__main__":
 
-    data_dir = "finger_tapping/data"
-    prefix_name = "PD_patient_trimmed"
+    data_dir = "Finger_Tapping/data"
+    prefix_name = "PD_patient"
     video_path = f"{prefix_name}.mov"
-    out_path = os.path.join(data_dir, "testing.gif")
+    out_path = os.path.join(data_dir, f"tracking_{prefix_name}.gif")
     tracking_path = os.path.join(data_dir, f"{prefix_name}.npy")
 
-    func = demo_utils.create_feature_gif
+    func = demo_utils.save_track_feat
     # adjust to your needs
     plot_args = {
-        "out_path": os.path.join(data_dir, "testing.gif"),
+        "video_dir": data_dir,
+        "video_name": video_path,
+        "out_path": out_path,
         "width": 256,
-        "height": 120,
     }
-    track_args = None
-    parse_args = {"tracking_path": tracking_path}
-    hand = "left"
+    track_args = {
+        "video_dir": data_dir,
+        "video_name": video_path,
+        "tracking_path": tracking_path,
+        "overwrite": False,
+    }
+    hand = "right"
+    parse_args = {"tracking_path": tracking_path, "hand": hand}
 
     plotting_pipeline(func, plot_args, track_args, parse_args, hand)
